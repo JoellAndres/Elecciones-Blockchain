@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fin del Voto</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/styles.css') }}">
+    <script>
+        // Redirigir a fin_voto.html después de 5 segundos
+        setTimeout(() => {
+            window.location.href = "{{ url_for('index') }}";
+        }, 5000);
+    </script>
+</head>
+<body class="fondo_secundario">
+    <div class="contenedor_img">
+        <img class="img_secundaria" src="{{ url_for('static', filename='images/candidatos/escudo_nacional_argentino.png') }}" alt="">
+    </div>
+    <div class="contenedor_secundario">
+        <p class="letra_secundaria">Tu voto ha sido<br>registrado exitosamente<br><br>¡Muchas gracias!</p>
+    </div>
+</body>
+</html>

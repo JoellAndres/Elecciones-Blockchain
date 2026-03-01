@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reconocimiento</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles/styles.css') }}">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css">
+</head>
+
+<body>
+    <div class="contenedor_img">
+        <img class="img_primaria"
+            src="{{ url_for('static', filename='images/candidatos/escudo_nacional_argentino.png') }}" alt="">
+    </div>
+
+    <div class="contenedor_reconocimiento">
+        <h1>Reconocimiento facial</h1>
+        <p class="texto_instruccion">Toca el botón para capturar o presiona "C" para capturar</p>
+    </div>
+
+    <div class="contenedor_camara">
+        <div class="video_container">
+            <video id="video" width="700" height="400" autoplay playsinline></video>
+            <div id="overlay" class="overlay">
+                <div class="face_box"></div>
+            </div>
+        </div>
+        <div class="contenedor_estado">
+            <p id="estado_mensaje" class="estado_mensaje">Preparando cámara...</p>
+        </div>
+        <div class="contenedor_botones_reconocimiento">
+            <a class="btn_volver_rec" href="{{url_for('ingresar_dni')}}">
+                <i class="bi bi-arrow-left-circle-fill _rec"></i> Volver
+            </a>
+            <button class="btn_capturar" id="capturar" disabled>Capturar</button>
+        </div>
+        <canvas id="canvas" width="400" height="300" style="display:none;"></canvas>
+    </div>
+
+    <script>
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        const capturarBtn = document.getElementById("capturar");
+        const estadoMensaje = document.getElementById("estado_mensaje");
+        const overlay = document.getElementById("overlay");
+
+        // Solicita acceso a la cámara
+        async function iniciarCamara() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        width: { ideal: 1280 },
+                        height: { ideal: 720 },
+                        facingMode: "user"
+                    } 
+                });
+                video.srcObject = stream;
+                capturarBtn.disabled = false;
+                estadoMensaje.textContent = "Cámara lista. Presione 'Capturar' cuando esté listo.";
+            } catch (err) {
+                console.error("Error al acceder a la cámara:", err);
+                estadoMensaje.textContent = "Error al acceder a la cámara. Por favor, verifique los permisos.";
+                estadoMensaje.classList.add("error");
+            }
+        }
+
+        iniciarCamara();
+
+        // Función para obtener el DNI de la sesión
+        async function obtenerDNI() {
+            try {
+                const response = await fetch('/obtener_dni');
+                const data = await response.json();
+                return data.dni;
+            } catch (error) {
+                console.error("Error al obtener DNI:", error);
+                return null;
+            }
+        };
+
+        capturarBtn.addEventListener("click", async () => {
+            try {
+                console.log("Iniciando captura de imagen...");
+                capturarBtn.disabled = true;
+                estadoMensaje.textContent = "Procesando imagen...";
+                
+                const dni = await obtenerDNI();
+                if (!dni) {
+                    throw new Error("No se pudo obtener el DNI de la sesión");
+                }
+
+                // Verificar que el video esté listo
+                if (video.readyState !== video.HAVE_ENOUGH_DATA) {
+                    throw new Error("La cámara no está lista. Por favor, espere un momento.");
+                }
+
+                // Configurar el canvas con las dimensiones del video
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                
+                // Dibujar el frame actual del video en el canvas
+                const context = canvas.getContext("2d");
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                
+                // Verificar que la imagen se haya capturado correctamente
+                if (canvas.width === 0 || canvas.height === 0) {
+                    throw new Error("No se pudo capturar la imagen correctamente");
+                }
+
+                // Convertir la imagen del canvas a base64 con mejor calidad
+                const imagenBase64 = canvas.toDataURL('image/jpeg', 1.0);
+                console.log("Imagen capturada correctamente");
+                
+                // Verificar que la imagen base64 sea válida
+                if (!imagenBase64 || imagenBase64.length < 100) {
+                    throw new Error("La imagen capturada no es válida");
+                }
+
+                console.log("Enviando imagen para reconocimiento...");
+                const response = await fetch("/reconocer", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        imagen: imagenBase64,
+                        dni: dni
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || `Error del servidor: ${response.status}`);
+                }
+
+                const resultado = await response.json();
+                console.log("Respuesta del servidor:", resultado);
+                
+                if (resultado.success) {
+                    estadoMensaje.textContent = "Reconocimiento exitoso";
+                    window.location.href = "/forma_voto";
+                } else {
+                    throw new Error(resultado.error || "Error en el reconocimiento facial");
+                }
+                
+            } catch (error) {
+                console.error('Error al capturar imagen:', error);
+                estadoMensaje.textContent = "Error: " + error.message;
+                capturarBtn.disabled = false;
+            }
+        })
+
+        // También permitir capturar con la tecla 'c'
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'c' && !capturarBtn.disabled) {
+                capturarBtn.click();
+            }
+        });
+    </script>
+
+</body>
+
+</html>
